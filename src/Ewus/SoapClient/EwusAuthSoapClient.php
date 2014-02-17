@@ -21,6 +21,11 @@ use Ewus\Exception\EwusUnexpectedResponseException;
  */
 class EwusAuthSoapClient extends EwusSoapClient {
     
+    const LOGIN_TYPE_LEK = 'LEK';
+    const LOGIN_TYPE_SWD = 'SWD';
+    
+    const SOAP_HEADER_NAMESPACE = 'http://xml.kamsoft.pl/ws/common';
+    
     /**
      * Regexp for getting auth response code
      */
@@ -38,26 +43,28 @@ class EwusAuthSoapClient extends EwusSoapClient {
 
         $response = parent::__soapCall('login', array(
                     array(
-                        'credentials' => array(
-                            array('name' => 'domain', 'value' => array('stringValue' => $params['domain'])),
-                            array('name' => 'login', 'value' => array('stringValue' => $params['username']))
-                        ),
+                        'credentials' => $this->getCredentials($params),
                         'password' => $params['password'])), null, null, $header);
+
         if (preg_match(self::AUTH_RESPONSE_REGEXP, $response, $response_msg)) {
             $return['response_code'] = $response_msg[1];
             $return['response_msg'] = $response_msg[2];
         } else {
             throw new EwusBadCredentialsException('Unexpected response from Auth Service');
         }
+        
         if (isset($header['session']) && isset($header['session']->id)) {
             $return['session_id'] = $header['session']->id;
         }
+        
         if (isset($header['authToken']) && isset($header['authToken']->id)) {
             $return['auth_token'] = $header['authToken']->id;
         }
+        
         if (!isset($return['auth_token']) || !isset($return['session_id'])) {
             throw new EwusUnexpectedResponseException('No required authentication values');
         }
+        
         return $return;
     }
 
@@ -69,8 +76,8 @@ class EwusAuthSoapClient extends EwusSoapClient {
      */
     public function authLogout(Array $params) {
         $headers = array(
-            new \SoapHeader('http://xml.kamsoft.pl/ws/common', "authToken", array('id' => $params['auth_token']), false),
-            new \SoapHeader('http://xml.kamsoft.pl/ws/common', "session", array('id' => $params['session_id']), false),
+            new \SoapHeader(self::SOAP_HEADER_NAMESPACE, "authToken", array('id' => $params['auth_token']), false),
+            new \SoapHeader(self::SOAP_HEADER_NAMESPACE, "session", array('id' => $params['session_id']), false),
         );
         try {
             $response = parent::__soapCall('logout', array(), null, $headers);
@@ -79,5 +86,27 @@ class EwusAuthSoapClient extends EwusSoapClient {
         }
         return strtolower($response) == 'wylogowany' ? TRUE : FALSE;
     }
+    
+    protected function getCredentials(array $params)
+    {
+        $r = array(
+            array('name' => 'domain', 'value' => array('stringValue' => $params['domain'])),
+            array('name' => 'login', 'value' => array('stringValue' => $params['username']))
+        );
+        
+        if(!is_null($params['login_type']) && !is_null($params['login_type_id']))
+        {
+            $r[] = array('name' => 'type', 'value' => array('stringValue' => $params['login_type']));
+            
+            if($params['login_type'] == self::LOGIN_TYPE_SWD){
+                $type = 'idntSwd';
+            } else {
+                $type = 'idntLek';
+            }
+            
+            $r[] = array('name' => $type, 'value' => array('stringValue' => $params['login_type_id']));
+        }
 
+        return $r;
+    }
 }

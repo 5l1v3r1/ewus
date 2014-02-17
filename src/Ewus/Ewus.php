@@ -75,6 +75,20 @@ class Ewus {
     protected $password;
 
     /**
+     * Login type
+     * Values:
+     * - LEK - doctor
+     * - SWD - provider
+     * @var string
+     */
+    protected $login_type;
+    
+    /**
+     * @var string
+     */
+    protected $login_type_id;
+    
+    /**
      * Application name (something like USER_AGENT) for broker service
      *
      * @var string
@@ -150,14 +164,22 @@ class Ewus {
      * @param array $soap_client_options
      */
     public function __construct($params = array(), $soap_client_options = array()) {
-        $params = array_merge(array('username' => 'TEST1', 'password' => 'qwerty!@#', 'domain' => 15, 'is_production' => FALSE, 'system_name' => 'eWus PHP Lib', 'system_version' => '1.0'), $params);
-        $this->soap_client_options = array_merge(array('trace' => 1, 'soap_version' => SOAP_1_1, 'exceptions' => true, 'cache_wsdl' => WSDL_CACHE_MEMORY), $soap_client_options);
+        $params = array_merge(array('username' => 'TEST1', 'password' => 'qwerty!@#', 
+            'domain' => 15, 'is_production' => FALSE, 'system_name' => 'eWus PHP Lib', 
+            'system_version' => '1.1', 'provider_type'=>null, 'provider_code'=>null), $params);
+        $this->soap_client_options = array_merge(array('trace' => 1, 'soap_version' => SOAP_1_1, 'exceptions' => false, 'cache_wsdl' => WSDL_CACHE_MEMORY), $soap_client_options);
 
         $this->username = $params['username'];
         $this->password = $params['password'];
+        
+        if(in_array($params['provider_type'], array(EwusAuthSoapClient::LOGIN_TYPE_LEK, EwusAuthSoapClient::LOGIN_TYPE_SWD))){
+            $this->login_type = $params['provider_type'];
+        }
+        $this->login_type_id = $params['provider_code'];
+        
         $this->system_name = $params['system_name'];
         $this->system_version = $params['system_version'];
-        $this->domain = (int) $params['domain'];
+        $this->domain = $params['domain'];
         $this->is_production = (bool) $params['is_production'];
     }
 
@@ -176,7 +198,13 @@ class Ewus {
      */
     public function authenticate() {
         $this->logged = FALSE;
-        $params = array('domain' => $this->domain, 'username' => $this->username, 'password' => $this->password);
+        $params = array(
+            'domain' => $this->domain, 
+            'username' => $this->username, 
+            'password' => $this->password,
+            'login_type' => $this->login_type,
+            'login_type_id' => $this->login_type_id
+        );
 
         $client = $this->getAuthClient();
         $response = $client->authLogin($params);
@@ -212,7 +240,10 @@ class Ewus {
         if (!$this->logged) {
             throw new NoLoggedException();
         }
+        
+        
         $client = $this->getBrokerClient();
+        
         $return = $client->brokerCheckCwu($pesel, array(
             'session_id' => $this->auth_session_id,
             'auth_token' => $this->auth_token,
