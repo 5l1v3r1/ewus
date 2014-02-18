@@ -16,9 +16,10 @@ use Ewus\Ewus;
  * 
  * options:
  * - username
+ * - password
  * - domain
  * - provider_type - LEK or SWD
- * - provider_code - ex. 001234
+ * - provider_code - e.g. 001234
  */
 $c = new Ewus(array('is_production' => FALSE, 'username' => 'TEST1', 'domain' => 15));
 

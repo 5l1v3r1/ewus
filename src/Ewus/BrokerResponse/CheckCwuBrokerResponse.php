@@ -18,6 +18,14 @@ namespace Ewus\BrokerResponse;
  */
 class CheckCwuBrokerResponse {
 
+    const NS2 = 'ns2';
+    const NS2_URL = 'https://ewus.nfz.gov.pl/ws/broker/ewus/status_cwu/v3';
+    const NS3 = 'ns3';
+    const NS3_URL = 'http://xml.kamsoft.pl/ws/broker';
+    
+    const NS_EXECUTE_SERVICE_RETURN = '/soapenv:Envelope/soapenv:Body/ns3:executeServiceReturn/';
+    const NS_STATUS_CWU_ODP = 'ns3:payload/ns3:textload/ns2:status_cwu_odp';
+    
     private $date;
     private $system_nfz_name;
     private $system_nfz_version;
@@ -78,69 +86,57 @@ class CheckCwuBrokerResponse {
         $return = array();
         try {
             $xml = simplexml_load_string($xmls);
-            $xml->registerXPathNamespace('ns3', 'http://xml.kamsoft.pl/ws/broker');
-            $xml->registerXPathNamespace('ns2', 'https://ewus.nfz.gov.pl/ws/broker/ewus/status_cwu/v3');
+            $xml->registerXPathNamespace(self::NS3, self::NS3_URL);
+            $xml->registerXPathNamespace(self::NS2, self::NS2_URL);
 
-            $return['date'] = $xml->xpath('/soapenv:Envelope/soapenv:Body/ns3:executeServiceReturn/ns3:date');
+            $return['date'] = $xml->xpath(self::NS_EXECUTE_SERVICE_RETURN.'ns3:date');
             $return['date'] = (string) $return['date'][0];
 
-            $system_nfz_name = $xml->xpath('/soapenv:Envelope/soapenv:Body/ns3:executeServiceReturn/ns3:payload/ns3:textload/ns2:status_cwu_odp/ns2:system_nfz');
+            $system_nfz_name = $xml->xpath(self::NS_EXECUTE_SERVICE_RETURN.self::NS_STATUS_CWU_ODP.'/ns2:system_nfz');
             $system_nfz_name = $system_nfz_name[0]->attributes();
             $return['system_nfz_name'] = (string) $system_nfz_name['nazwa'];
             $return['system_nfz_version'] = (string) $system_nfz_name['wersja'];
 
-            $return['provider_id'] = $xml->xpath('/soapenv:Envelope/soapenv:Body/ns3:executeServiceReturn/ns3:payload/ns3:textload/ns2:status_cwu_odp/ns2:swiad/ns2:id_swiad');
-            $return['provider_id'] = (string) $return['provider_id'][0];
+            $nss = array(
+                'provider_id' => '/ns2:swiad/ns2:id_swiad',
+                'provider_id_ow' => '/ns2:swiad/ns2:id_ow',
+                'provider_id_operator' => '/ns2:swiad/ns2:id_operatora',
+                'patient_expiry_date' => '/ns2:pacjent/ns2:data_waznosci_potwierdzenia',
+                'patient_status_cwu' => '/ns2:pacjent/ns2:status_ubezp',
+                'patient_pesel' => '/ns2:numer_pesel',
+                'patient_name' => '/ns2:pacjent/ns2:imie',
+                'patient_surname' => '/ns2:pacjent/ns2:nazwisko'
+            );
+            
+            foreach($nss as $key=>$ns){
+                $return[$key] = $xml->xpath(self::NS_EXECUTE_SERVICE_RETURN.self::NS_STATUS_CWU_ODP.$ns);
+                $return[$key] = (string) $return[$key][0];
+            }
 
-            $return['provider_id_ow'] = $xml->xpath('/soapenv:Envelope/soapenv:Body/ns3:executeServiceReturn/ns3:payload/ns3:textload/ns2:status_cwu_odp/ns2:swiad/ns2:id_ow');
-            $return['provider_id_ow'] = (string) $return['provider_id_ow'][0];
+            // ns2:status_cwu_odp
+            $cwuOdp = $xml->xpath(self::NS_EXECUTE_SERVICE_RETURN.self::NS_STATUS_CWU_ODP);
+            $signedInfo = $cwuOdp[0]->Signature->SignedInfo;
 
-            $return['provider_id_operator'] = $xml->xpath('/soapenv:Envelope/soapenv:Body/ns3:executeServiceReturn/ns3:payload/ns3:textload/ns2:status_cwu_odp/ns2:swiad/ns2:id_operatora');
-            $return['provider_id_operator'] = (string) $return['provider_id_operator'][0];
-
-            $return['patient_expiry_date'] = $xml->xpath('/soapenv:Envelope/soapenv:Body/ns3:executeServiceReturn/ns3:payload/ns3:textload/ns2:status_cwu_odp/ns2:pacjent/ns2:data_waznosci_potwierdzenia');
-            $return['patient_expiry_date'] = (string) $return['patient_expiry_date'][0];
-
-            $return['patient_status_cwu'] = $xml->xpath('/soapenv:Envelope/soapenv:Body/ns3:executeServiceReturn/ns3:payload/ns3:textload/ns2:status_cwu_odp/ns2:pacjent/ns2:status_ubezp');
-            $return['patient_status_cwu'] = (string) $return['patient_status_cwu'][0];
-
-            $return['patient_pesel'] = $xml->xpath('/soapenv:Envelope/soapenv:Body/ns3:executeServiceReturn/ns3:payload/ns3:textload/ns2:status_cwu_odp/ns2:numer_pesel');
-            $return['patient_pesel'] = (string) $return['patient_pesel'][0];
-
-            $return['patient_name'] = $xml->xpath('/soapenv:Envelope/soapenv:Body/ns3:executeServiceReturn/ns3:payload/ns3:textload/ns2:status_cwu_odp/ns2:pacjent/ns2:imie');
-            $return['patient_name'] = (string) $return['patient_name'][0];
-
-            $return['patient_surname'] = $xml->xpath('/soapenv:Envelope/soapenv:Body/ns3:executeServiceReturn/ns3:payload/ns3:textload/ns2:status_cwu_odp/ns2:pacjent/ns2:nazwisko');
-            $return['patient_surname'] = (string) $return['patient_surname'][0];
-
-            $return['signature'] = $xml->xpath('/soapenv:Envelope/soapenv:Body/ns3:executeServiceReturn/ns3:payload/ns3:textload/ns2:status_cwu_odp');
-            $return['signature'] = $return['signature'][0]->Signature;
+            $return['signature'] = $cwuOdp[0]->Signature;
             $return['signature'] = (string) $return['signature'][0]->SignatureValue;
+            $return['signature_canonicalization_method'] = (string) $signedInfo->CanonicalizationMethod->attributes()->Algorithm;
+            $return['signature_method'] = $signedInfo->SignatureMethod->attributes()->Algorithm;
 
-            $return['signature_canonicalization_method'] = $xml->xpath('/soapenv:Envelope/soapenv:Body/ns3:executeServiceReturn/ns3:payload/ns3:textload/ns2:status_cwu_odp');
-            $return['signature_canonicalization_method'] = (string) $return['signature_canonicalization_method'][0]->Signature->SignedInfo->CanonicalizationMethod->attributes()->Algorithm;
-
-            $return['signature_method'] = $xml->xpath('/soapenv:Envelope/soapenv:Body/ns3:executeServiceReturn/ns3:payload/ns3:textload/ns2:status_cwu_odp');
-            $return['signature_method'] = $return['signature_method'][0]->Signature->SignedInfo->SignatureMethod->attributes()->Algorithm;
-
-            $signature_reference_transforms = $xml->xpath('/soapenv:Envelope/soapenv:Body/ns3:executeServiceReturn/ns3:payload/ns3:textload/ns2:status_cwu_odp');
-            foreach ($signature_reference_transforms[0]->Signature->SignedInfo->Reference->Transforms->Transform as $elem) {
+            foreach ($signedInfo->Reference->Transforms->Transform as $elem) {
                 $return['signature_reference_transforms'][] = (string) $elem->attributes()->Algorithm;
             }
             
-            $return['signature_reference_digest_method'] = $xml->xpath('/soapenv:Envelope/soapenv:Body/ns3:executeServiceReturn/ns3:payload/ns3:textload/ns2:status_cwu_odp');
-            $return['signature_reference_digest_method'] = (string) $return['signature_reference_digest_method'][0]->Signature->SignedInfo->Reference->DigestMethod->attributes()->Algorithm;
-            
-            $return['signature_reference_digest_value'] = $xml->xpath('/soapenv:Envelope/soapenv:Body/ns3:executeServiceReturn/ns3:payload/ns3:textload/ns2:status_cwu_odp');
-            $return['signature_reference_digest_value'] = (string) $return['signature_reference_digest_value'][0]->Signature->SignedInfo->Reference->DigestValue;
-        } catch (Exception $e) {
+            $return['signature_reference_digest_method'] = (string) $signedInfo->Reference->DigestMethod->attributes()->Algorithm;
+            $return['signature_reference_digest_value'] = (string) $signedInfo->Reference->DigestValue;
+        } 
+        catch (Exception $e) {
             throw new \InvalidArgumentException('Error while parsing XML string.');
         }
+        
         return new self($return);
     }
 
     /**
-     * 
      * @return DateTime
      */
     public function getDate() {
@@ -148,7 +144,6 @@ class CheckCwuBrokerResponse {
     }
 
     /**
-     * 
      * @return string
      */
     public function getSystemNfzName() {
@@ -156,7 +151,6 @@ class CheckCwuBrokerResponse {
     }
 
     /**
-     * 
      * @return string
      */
     public function getSystemNfzVersion() {
@@ -164,7 +158,6 @@ class CheckCwuBrokerResponse {
     }
 
     /**
-     * 
      * @return string
      */
     public function getProviderId() {
@@ -172,7 +165,6 @@ class CheckCwuBrokerResponse {
     }
 
     /**
-     * 
      * @return integer
      */
     public function getProviderIdOw() {
@@ -180,7 +172,6 @@ class CheckCwuBrokerResponse {
     }
 
     /**
-     * 
      * @return integer
      */
     public function getProviderIdOperator() {
@@ -188,7 +179,6 @@ class CheckCwuBrokerResponse {
     }
 
     /**
-     * 
      * @return DateTime
      */
     public function getPatientExpiryDate() {
@@ -196,7 +186,6 @@ class CheckCwuBrokerResponse {
     }
 
     /**
-     * 
      * @return integer
      */
     public function getPatientStatusCwu() {
@@ -204,7 +193,6 @@ class CheckCwuBrokerResponse {
     }
 
     /**
-     * 
      * @return integer
      */
     public function getPatientPesel() {
@@ -212,7 +200,6 @@ class CheckCwuBrokerResponse {
     }
 
     /**
-     * 
      * @return string
      */
     public function getPatientName() {
@@ -220,7 +207,6 @@ class CheckCwuBrokerResponse {
     }
 
     /**
-     * 
      * @return string
      */
     public function getPatientSurname() {
@@ -228,7 +214,6 @@ class CheckCwuBrokerResponse {
     }
 
     /**
-     * 
      * @return string
      */
     public function getSignature() {
@@ -236,7 +221,6 @@ class CheckCwuBrokerResponse {
     }
 
     /**
-     * 
      * @return string
      */
     public function getSignatureCanonicalizationMethod() {
@@ -244,7 +228,6 @@ class CheckCwuBrokerResponse {
     }
 
     /**
-     * 
      * @return string
      */
     public function getSignatureMethod() {
@@ -252,7 +235,6 @@ class CheckCwuBrokerResponse {
     }
 
     /**
-     * 
      * @return string
      */
     public function getSignatureReferenceTransforms() {
@@ -260,7 +242,6 @@ class CheckCwuBrokerResponse {
     }
 
     /**
-     * 
      * @return string
      */
     public function getSignatureReferenceDigestMethod() {
@@ -268,11 +249,9 @@ class CheckCwuBrokerResponse {
     }
 
     /**
-     * 
      * @return string
      */
     public function getSignatureReferenceDigestValue() {
         return $this->signature_reference_digest_value;
     }
-
 }

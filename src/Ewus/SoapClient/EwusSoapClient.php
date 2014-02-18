@@ -43,5 +43,4 @@ abstract class EwusSoapClient extends \SoapClient {
         $this->options = $options;
         parent::__construct($wsdl, $options);
     }
-
 }

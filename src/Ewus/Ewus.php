@@ -81,12 +81,13 @@ class Ewus {
      * - SWD - provider
      * @var string
      */
-    protected $login_type;
+    protected $provider_type;
     
     /**
+     * Provider id
      * @var string
      */
-    protected $login_type_id;
+    protected $provider_code;
     
     /**
      * Application name (something like USER_AGENT) for broker service
@@ -173,9 +174,9 @@ class Ewus {
         $this->password = $params['password'];
         
         if(in_array($params['provider_type'], array(EwusAuthSoapClient::LOGIN_TYPE_LEK, EwusAuthSoapClient::LOGIN_TYPE_SWD))){
-            $this->login_type = $params['provider_type'];
+            $this->provider_type = $params['provider_type'];
         }
-        $this->login_type_id = $params['provider_code'];
+        $this->provider_code = $params['provider_code'];
         
         $this->system_name = $params['system_name'];
         $this->system_version = $params['system_version'];
@@ -202,8 +203,8 @@ class Ewus {
             'domain' => $this->domain, 
             'username' => $this->username, 
             'password' => $this->password,
-            'login_type' => $this->login_type,
-            'login_type_id' => $this->login_type_id
+            'provider_type' => $this->provider_type,
+            'provider_code' => $this->provider_code
         );
 
         $client = $this->getAuthClient();
@@ -240,8 +241,7 @@ class Ewus {
         if (!$this->logged) {
             throw new NoLoggedException();
         }
-        
-        
+
         $client = $this->getBrokerClient();
         
         $return = $client->brokerCheckCwu($pesel, array(
