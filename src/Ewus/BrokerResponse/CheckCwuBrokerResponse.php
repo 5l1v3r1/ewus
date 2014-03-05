@@ -18,6 +18,8 @@ namespace Ewus\BrokerResponse;
  */
 class CheckCwuBrokerResponse {
 
+    const NS1 = 'ns1';
+    const NS1_URL = 'http://xml.kamsoft.pl/ws/common';
     const NS2 = 'ns2';
     const NS2_URL = 'https://ewus.nfz.gov.pl/ws/broker/ewus/status_cwu/v3';
     const NS3 = 'ns3';
@@ -25,6 +27,7 @@ class CheckCwuBrokerResponse {
     
     const NS_EXECUTE_SERVICE_RETURN = '/soapenv:Envelope/soapenv:Body/ns3:executeServiceReturn/';
     const NS_STATUS_CWU_ODP = 'ns3:payload/ns3:textload/ns2:status_cwu_odp';
+    const NS_FAULT = '/soapenv:Envelope/soapenv:Body/soapenv:Fault/';
     
     private $date;
     private $system_nfz_name;
@@ -32,6 +35,7 @@ class CheckCwuBrokerResponse {
     private $provider_id;
     private $provider_id_ow;
     private $provider_id_operator;
+    private $status_cwu;
     private $patient_expiry_date;
     private $patient_status_cwu;
     private $patient_pesel;
@@ -43,7 +47,12 @@ class CheckCwuBrokerResponse {
     private $signature_reference_transforms;
     private $signature_reference_digest_method;
     private $signature_reference_digest_value;
-
+    private $faultstring;
+    private $detail_faultstring;
+    private $detail_faultcode;
+    private $detail_faultactor;
+    private $isFault = false;
+    
     /**
      * Creates CheckCwuBrokerResponse object from array
      * 
@@ -71,6 +80,8 @@ class CheckCwuBrokerResponse {
                 $this->{$key} = (isset($transform[$key]) && is_callable($transform[$key])) ? $transform[$key]($value) : $value;
             }
         }
+        
+        if(!empty($this->faultstring)){ $this->isFault = true; }
     }
 
     /**
@@ -89,6 +100,21 @@ class CheckCwuBrokerResponse {
             $xml->registerXPathNamespace(self::NS3, self::NS3_URL);
             $xml->registerXPathNamespace(self::NS2, self::NS2_URL);
 
+            $fault = $xml->xpath(self::NS_FAULT.'faultstring');
+            
+            if(isset($fault[0]))
+            {
+                $xml->registerXPathNamespace(self::NS1, self::NS1_URL);
+                
+                $return = array(
+                    'faultstring' => (string)$fault[0],
+                    'detail_faultstring' => (string)current($xml->xpath(self::NS_FAULT.'detail/ns1:inputError/ns1:faultstring')),
+                    'detail_faultcode' => (string)current($xml->xpath(self::NS_FAULT.'detail/ns1:inputError/ns1:faultcode')),
+                    'detail_faultactor' => (string)current($xml->xpath(self::NS_FAULT.'detail/ns1:inputError/ns1:faultactor'))
+                );
+                return new self($return);
+            }
+
             $return['date'] = $xml->xpath(self::NS_EXECUTE_SERVICE_RETURN.'ns3:date');
             $return['date'] = (string) $return['date'][0];
 
@@ -101,12 +127,21 @@ class CheckCwuBrokerResponse {
                 'provider_id' => '/ns2:swiad/ns2:id_swiad',
                 'provider_id_ow' => '/ns2:swiad/ns2:id_ow',
                 'provider_id_operator' => '/ns2:swiad/ns2:id_operatora',
-                'patient_expiry_date' => '/ns2:pacjent/ns2:data_waznosci_potwierdzenia',
-                'patient_status_cwu' => '/ns2:pacjent/ns2:status_ubezp',
-                'patient_pesel' => '/ns2:numer_pesel',
-                'patient_name' => '/ns2:pacjent/ns2:imie',
-                'patient_surname' => '/ns2:pacjent/ns2:nazwisko'
+                'status_cwu' => '/ns2:status_cwu',
+                'patient_pesel' => '/ns2:numer_pesel'
             );
+
+            $patient = $xml->xpath(self::NS_EXECUTE_SERVICE_RETURN.self::NS_STATUS_CWU_ODP.'/ns2:pacjent');
+
+            if(isset($patient[0])){
+                $nssPatient = array(
+                    'patient_expiry_date' => '/ns2:pacjent/ns2:data_waznosci_potwierdzenia',
+                    'patient_status_cwu' => '/ns2:pacjent/ns2:status_ubezp',
+                    'patient_name' => '/ns2:pacjent/ns2:imie',
+                    'patient_surname' => '/ns2:pacjent/ns2:nazwisko'
+                );
+                $nss = array_merge($nss, $nssPatient);
+            }
             
             foreach($nss as $key=>$ns){
                 $return[$key] = $xml->xpath(self::NS_EXECUTE_SERVICE_RETURN.self::NS_STATUS_CWU_ODP.$ns);
@@ -253,5 +288,29 @@ class CheckCwuBrokerResponse {
      */
     public function getSignatureReferenceDigestValue() {
         return $this->signature_reference_digest_value;
+    }
+    
+    public function getFaultstring() {
+        return $this->faultstring;
+    }
+
+    public function getDetailFaultstring() {
+        return $this->detail_faultstring;
+    }
+
+    public function getDetailFaultcode() {
+        return $this->detail_faultcode;
+    }
+
+    public function getDetailFaultactor() {
+        return $this->detail_faultactor;
+    }
+    
+    public function getStatusCWU() {
+        return $this->status_cwu;
+    }
+    
+    public function isFault() {
+        return $this->isFault;
     }
 }
