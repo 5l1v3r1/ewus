@@ -8,7 +8,6 @@
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
  */
-
 namespace Ewus\SoapClient;
 
 use Ewus\Exception\EwusBadCredentialsException;
@@ -18,8 +17,8 @@ use Ewus\Exception\EwusUnexpectedResponseException;
  * EwusAuthSoapClient
  * @author Bartosz Pietrzak <b3k@b3k.pl>
  */
-class EwusAuthSoapClient extends EwusSoapClient {
-
+class EwusAuthSoapClient extends EwusSoapClient
+{
     const LOGIN_TYPE_LEK = 'LEK';
     const LOGIN_TYPE_SWD = 'SWD';
     const SOAP_HEADER_NAMESPACE = 'http://xml.kamsoft.pl/ws/common';
@@ -36,14 +35,22 @@ class EwusAuthSoapClient extends EwusSoapClient {
      * @throws EwusBadCredentialsException
      * @throws EwusUnexpectedResponseException
      */
-    public function authLogin(Array $params) {
+    public function authLogin(Array $params)
+    {
         $header = $return = $response_msg = array();
 
-        $response = parent::__soapCall('login', array(
+        $response = parent::__soapCall(
+            'login',
+            array(
                 array(
                     'credentials' => $this->getCredentials($params),
-                    'password' => $params['password'])
-                ), null, null, $header);
+                    'password' => $params['password']
+                )
+            ),
+            null,
+            null,
+            $header
+        );
 
         if (preg_match(self::AUTH_RESPONSE_REGEXP, $response, $response_msg)) {
             $return['response_code'] = $response_msg[1];
@@ -73,7 +80,8 @@ class EwusAuthSoapClient extends EwusSoapClient {
      * @param array $params
      * @return boolean
      */
-    public function authLogout(Array $params) {
+    public function authLogout(Array $params)
+    {
         $headers = array(
             new \SoapHeader(self::SOAP_HEADER_NAMESPACE, "authToken", array('id' => $params['auth_token']), false),
             new \SoapHeader(self::SOAP_HEADER_NAMESPACE, "session", array('id' => $params['session_id']), false),
@@ -81,19 +89,19 @@ class EwusAuthSoapClient extends EwusSoapClient {
         try {
             $response = parent::__soapCall('logout', array(), null, $headers);
         } catch (\SoapFault $e) {
-            return FALSE;
+            return false;
         }
-        return strtolower($response) == 'wylogowany' ? TRUE : FALSE;
+        return strtolower($response) == 'wylogowany' ? true : false;
     }
 
-    protected function getCredentials(array $params) {
+    protected function getCredentials(array $params)
+    {
         $r = array(
             array('name' => 'domain', 'value' => array('stringValue' => $params['domain'])),
             array('name' => 'login', 'value' => array('stringValue' => $params['username']))
         );
 
-        if( ! is_null($params['provider_type']) && ! is_null($params['provider_code'])) 
-        {
+        if (!is_null($params['provider_type']) && !is_null($params['provider_code'])) {
             $r[] = array('name' => 'type', 'value' => array('stringValue' => $params['provider_type']));
 
             $type = ($params['provider_type'] == self::LOGIN_TYPE_SWD) ? 'idntSwd' : 'idntLek';
@@ -103,5 +111,4 @@ class EwusAuthSoapClient extends EwusSoapClient {
 
         return $r;
     }
-
 }

@@ -1,6 +1,8 @@
 <?php
+
 namespace Ewus\Exception;
 
-class EwusBadCredentialsException extends \Exception {
+class EwusBadCredentialsException extends \Exception
+{
     
 }

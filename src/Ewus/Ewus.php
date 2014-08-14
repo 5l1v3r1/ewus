@@ -8,7 +8,6 @@
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
  */
-
 namespace Ewus;
 
 use Ewus\Exception\EwusBadCredentialsException;
@@ -24,34 +23,33 @@ use Ewus\BrokerResponse\CheckCwuBrokerResponse;
  * 
  * @author Bartosz Pietrzak <b3k@b3k.pl>
  */
-class Ewus {
-
+class Ewus
+{
     /**
      * Production Auth WSDL (working)
      */
     const WSDL_PROD_AUTH = "https://ewus.nfz.gov.pl/ws-broker-server-ewus/services/Auth?wsdl";
-    
+
     /**
      * Production Broker WSDL (working)
      */
     const WSDL_PROD_BROK = "https://ewus.nfz.gov.pl/ws-broker-server-ewus/services/ServiceBroker?wsdl";
-    
+
     /**
      * Currently this WSDL is broken (sic) use "tests/fixed_auth.wsdl" instead for testing.
      */
     const WSDL_TEST_AUTH = "https://ewus.nfz.gov.pl/ws-broker-server-ewus-auth-test/services/Auth?wsdl";
-    
+
     /**
      * Currently this WSDL is broken (sic) use "tests/fixed_broker.wsdl" instead for testing.
      */
     const WSDL_TEST_BROK = "https://ewus.nfz.gov.pl/ws-broker-server-ewus-auth-test/services/ServiceBroker?wsdl";
-
     /**
      * Is prodcution env ?
      *
      * @var boolean
      */
-    protected $is_production = FALSE;
+    protected $is_production = false;
 
     /**
      * Domain 
@@ -82,13 +80,13 @@ class Ewus {
      * @var string
      */
     protected $provider_type;
-    
+
     /**
      * Provider id
      * @var string
      */
     protected $provider_code;
-    
+
     /**
      * Application name (something like USER_AGENT) for broker service
      *
@@ -129,7 +127,7 @@ class Ewus {
      * 
      * @var string
      */
-    protected $logged = FALSE;
+    protected $logged = false;
 
     /**
      * Holds AuthToken from login request
@@ -164,20 +162,40 @@ class Ewus {
      * @param array $params
      * @param array $soap_client_options
      */
-    public function __construct($params = array(), $soap_client_options = array()) {
-        $params = array_merge(array('username' => 'TEST1', 'password' => 'qwerty!@#', 
-            'domain' => 15, 'is_production' => FALSE, 'system_name' => 'eWus PHP Lib', 
-            'system_version' => '1.1', 'provider_type'=>null, 'provider_code'=>null), $params);
-        $this->soap_client_options = array_merge(array('trace' => 1, 'soap_version' => SOAP_1_1, 'exceptions' => false, 'cache_wsdl' => WSDL_CACHE_MEMORY), $soap_client_options);
+    public function __construct($params = array(), $soap_client_options = array())
+    {
+        $params = array_merge(
+            array(
+                'username' => 'TEST1',
+                'password' => 'qwerty!@#',
+                'domain' => 15,
+                'is_production' => false,
+                'system_name' => 'eWus PHP Lib',
+                'system_version' => '1.1',
+                'provider_type' => null,
+                'provider_code' => null
+            ),
+            $params
+        );
+
+        $this->soap_client_options = array_merge(
+            array('trace' => 1, 'soap_version' => SOAP_1_1, 'exceptions' => false, 'cache_wsdl' => WSDL_CACHE_MEMORY),
+            $soap_client_options
+        );
 
         $this->username = $params['username'];
         $this->password = $params['password'];
-        
-        if(in_array($params['provider_type'], array(EwusAuthSoapClient::LOGIN_TYPE_LEK, EwusAuthSoapClient::LOGIN_TYPE_SWD))){
+
+        if (
+            in_array(
+                $params['provider_type'],
+                array(EwusAuthSoapClient::LOGIN_TYPE_LEK, EwusAuthSoapClient::LOGIN_TYPE_SWD)
+            )
+        ) {
             $this->provider_type = $params['provider_type'];
         }
         $this->provider_code = $params['provider_code'];
-        
+
         $this->system_name = $params['system_name'];
         $this->system_version = $params['system_version'];
         $this->domain = $params['domain'];
@@ -187,7 +205,8 @@ class Ewus {
     /**
      *  Destructor created to make logout from session.
      */
-    public function __destruct() {
+    public function __destruct()
+    {
         $this->logout();
     }
 
@@ -197,11 +216,12 @@ class Ewus {
      * @return boolean
      * @throws EwusBadCredentialsException
      */
-    public function authenticate() {
-        $this->logged = FALSE;
+    public function authenticate()
+    {
+        $this->logged = false;
         $params = array(
-            'domain' => $this->domain, 
-            'username' => $this->username, 
+            'domain' => $this->domain,
+            'username' => $this->username,
             'password' => $this->password,
             'provider_type' => $this->provider_type,
             'provider_code' => $this->provider_code
@@ -214,7 +234,7 @@ class Ewus {
         $this->auth_response_code = $response['response_code'];
         $this->auth_response_msg = $response['response_msg'];
 
-        $this->logged = TRUE;
+        $this->logged = true;
 
         return $this->logged;
     }
@@ -224,11 +244,15 @@ class Ewus {
      * 
      * @return boolean
      */
-    public function logout() {
+    public function logout()
+    {
         if (!$this->logged) {
-            return TRUE;
+            return true;
         }
-        return $this->getAuthClient()->authLogout(array('session_id' => $this->auth_session_id, 'auth_token' => $this->auth_token));
+
+        return $this->getAuthClient()->authLogout(
+            array('session_id' => $this->auth_session_id, 'auth_token' => $this->auth_token)
+        );
     }
 
     /**
@@ -237,19 +261,22 @@ class Ewus {
      * @param integer $pesel
      * @throws NoLoggedException
      */
-    public function checkPesel($pesel) {
+    public function checkPesel($pesel)
+    {
         if (!$this->logged) {
             throw new NoLoggedException();
         }
 
         $client = $this->getBrokerClient();
-        
-        $return = $client->brokerCheckCwu($pesel, array(
-            'session_id' => $this->auth_session_id,
-            'auth_token' => $this->auth_token,
-            'system_name' => $this->system_name,
-            'system_version' => $this->system_version
-                )
+
+        $return = $client->brokerCheckCwu(
+            $pesel,
+            array(
+                'session_id' => $this->auth_session_id,
+                'auth_token' => $this->auth_token,
+                'system_name' => $this->system_name,
+                'system_version' => $this->system_version
+            )
         );
         return CheckCwuBrokerResponse::createFromXml($return);
     }
@@ -259,7 +286,8 @@ class Ewus {
      * 
      * @return string
      */
-    public function getAuthToken() {
+    public function getAuthToken()
+    {
         return $this->auth_token;
     }
 
@@ -268,7 +296,8 @@ class Ewus {
      * 
      * @return string
      */
-    public function getSessionId() {
+    public function getSessionId()
+    {
         return $this->session_id;
     }
 
@@ -277,7 +306,8 @@ class Ewus {
      * 
      * @return string
      */
-    public function getAuthResponseCode() {
+    public function getAuthResponseCode()
+    {
         return $this->auth_response_code;
     }
 
@@ -286,7 +316,8 @@ class Ewus {
      * 
      * @return string
      */
-    public function getAuthResponseMsg() {
+    public function getAuthResponseMsg()
+    {
         return $this->auth_response_msg;
     }
 
@@ -295,9 +326,13 @@ class Ewus {
      * 
      * @return EwusSoapClient
      */
-    public function getAuthClient() {
+    public function getAuthClient()
+    {
         if (!$this->auth_client instanceof EwusAuthSoapClient) {
-            $this->auth_client = new EwusAuthSoapClient($this->is_production ? self::WSDL_PROD_AUTH : self::WSDL_TEST_AUTH, $this->soap_client_options);
+            $this->auth_client = new EwusAuthSoapClient(
+                $this->is_production ? self::WSDL_PROD_AUTH : self::WSDL_TEST_AUTH,
+                $this->soap_client_options
+            );
         }
         return $this->auth_client;
     }
@@ -307,11 +342,14 @@ class Ewus {
      * 
      * @return EwusSoapClient
      */
-    public function getBrokerClient() {
+    public function getBrokerClient()
+    {
         if (!$this->broker_client instanceof EwusBrokerServiceSoapClient) {
-            $this->broker_client = new EwusBrokerServiceSoapClient($this->is_production ? self::WSDL_PROD_BROK : self::WSDL_TEST_BROK, $this->soap_client_options);
+            $this->broker_client = new EwusBrokerServiceSoapClient(
+                $this->is_production ? self::WSDL_PROD_BROK : self::WSDL_TEST_BROK,
+                $this->soap_client_options
+            );
         }
         return $this->broker_client;
     }
-
 }
